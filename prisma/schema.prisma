@@ -1,0 +1,791 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTH & USERS
+// ============================================================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      String   @default("admin") // admin, property_manager, owner, tenant, technician, accountant
+  avatar    String?
+  phone     String?
+  mandantId String?
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mandant           Mandant?     @relation(fields: [mandantId], references: [id])
+  tenantProfile     Tenant?
+  technicianProfile Technician?
+  ownerProfile      Owner?
+  auditLogs         AuditLog[]
+  sessions          Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+// ============================================================================
+// MULTI-CLIENT (MANDANTEN)
+// ============================================================================
+
+model Mandant {
+  id          String   @id @default(uuid())
+  name        String
+  legalName   String?
+  taxId       String?  // Steuernummer
+  street      String?
+  zipCode     String?
+  city        String?
+  email       String?
+  phone       String?
+  bankName    String?
+  iban        String?
+  bic         String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  properties  Property[]
+  owners      Owner[]
+  technicians Technician[]
+  templates   MessageTemplate[]
+  automations AutomationRule[]
+  bankTransactions BankTransaction[]
+}
+
+// ============================================================================
+// PROPERTIES & UNITS
+// ============================================================================
+
+model Property {
+  id                    String   @id @default(uuid())
+  mandantId             String?
+  name                  String
+  street                String
+  houseNumber           String
+  zipCode               String
+  city                  String
+  country               String   @default("Deutschland")
+  buildYear             Int
+  totalArea             Float
+  energyEfficiencyClass String
+  propertyType          String   @default("rental") // rental, weg, cooperative
+  insuranceNumber       String?
+  insuranceExpiry       DateTime?
+  contactName           String?
+  contactEmail          String?
+  contactPhone          String?
+  notes                 String?
+  imageUrl              String?
+  // WEG-specific
+  wegNumber             String?  // WEG Aktenzeichen
+  reserveBalance        Float    @default(0) // Instandhaltungsrücklage
+  reserveTarget         Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  mandant    Mandant?   @relation(fields: [mandantId], references: [id])
+  units      Unit[]
+  tickets    Ticket[]
+  billings   Billing[]
+  auditLogs  AuditLog[]
+  documents  Document[]
+  expenses   Expense[]
+  meetings   Meeting[]
+  owners     PropertyOwner[]
+
+  @@index([mandantId])
+}
+
+model Unit {
+  id          String   @id @default(uuid())
+  propertyId  String
+  designation String
+  floor       Int
+  area        Float
+  rooms       Int
+  bathrooms   Int      @default(1)
+  hasBalcony  Boolean  @default(false)
+  hasTerrace  Boolean  @default(false)
+  rent        Float
+  utilityCost Float    @default(0)
+  status      String   @default("occupied") // occupied, vacant, renovation
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  sensors       Sensor[]
+  contracts     Contract[]
+  tickets       Ticket[]
+  sensorData    SensorData[]
+  meters        Meter[]
+  meterReadings MeterReading[]
+  documents     Document[]
+}
+
+// ============================================================================
+// OWNERS
+// ============================================================================
+
+model Owner {
+  id          String   @id @default(uuid())
+  userId      String?  @unique
+  mandantId   String?
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  company     String?
+  taxId       String?
+  iban        String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User?           @relation(fields: [userId], references: [id])
+  mandant    Mandant?        @relation(fields: [mandantId], references: [id])
+  properties PropertyOwner[]
+}
+
+model PropertyOwner {
+  id         String   @id @default(uuid())
+  propertyId String
+  ownerId    String
+  share      Float    @default(100) // Ownership percentage (for WEG: Miteigentumsanteil)
+  since      DateTime @default(now())
+  until      DateTime?
+  isActive   Boolean  @default(true)
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  owner    Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, ownerId])
+}
+
+// ============================================================================
+// TENANTS & CONTRACTS
+// ============================================================================
+
+model Tenant {
+  id            String   @id @default(uuid())
+  userId        String?  @unique
+  firstName     String
+  lastName      String
+  email         String
+  phone         String?
+  mobile        String?
+  dateOfBirth   DateTime?
+  occupation    String?
+  employer      String?
+  netIncome     Float?
+  creditScore   Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user           User?            @relation(fields: [userId], references: [id])
+  contracts      Contract[]
+  payments       Payment[]
+  tickets        Ticket[]
+  communications Communication[]
+  documents      Document[]
+  dunningSteps   DunningStep[]
+  consents       Consent[]
+}
+
+model Contract {
+  id              String   @id @default(uuid())
+  tenantId        String
+  unitId          String
+  startDate       DateTime
+  endDate         DateTime?
+  monthlyRent     Float
+  utilityCost     Float
+  deposit         Float    @default(0)
+  depositPaid     Float    @default(0)
+  noticePeriod    Int      @default(3) // months
+  specialTerms    String?
+  status          String   @default("active") // active, terminated, expired, pending
+  terminatedAt    DateTime?
+  terminationBy   String?  // tenant, landlord
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit     Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([tenantId])
+  @@index([unitId])
+  @@index([status])
+}
+
+// ============================================================================
+// PAYMENTS & ACCOUNTING
+// ============================================================================
+
+model Payment {
+  id          String   @id @default(uuid())
+  tenantId    String
+  contractId  String?
+  amount      Float
+  paymentDate DateTime
+  dueDate     DateTime
+  type        String   @default("rent") // rent, utility, deposit, bk_nachzahlung, bk_guthaben, other
+  method      String?  // bank_transfer, direct_debit, cash
+  reference   String?
+  status      String   @default("completed") // completed, pending, failed, overdue
+  bankTransactionId String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract        Contract?        @relation(fields: [contractId], references: [id])
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id])
+
+  @@index([tenantId, dueDate])
+  @@index([status])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  propertyId  String
+  category    String   // maintenance, insurance, management, tax, utility, reserve, other
+  description String
+  amount      Float
+  date        DateTime
+  vendor      String?
+  invoiceRef  String?
+  ticketId    String?
+  isDeductible Boolean @default(true) // tax deductible
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, date])
+  @@index([category])
+}
+
+model BankTransaction {
+  id            String   @id @default(uuid())
+  mandantId     String?
+  date          DateTime
+  amount        Float
+  senderName    String?
+  senderIban    String?
+  reference     String?
+  bookingText   String?
+  isMatched     Boolean  @default(false)
+  matchedAt     DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  mandant  Mandant?  @relation(fields: [mandantId], references: [id])
+  payments Payment[]
+
+  @@index([isMatched])
+  @@index([date])
+}
+
+// ============================================================================
+// DUNNING (MAHNWESEN)
+// ============================================================================
+
+model DunningStep {
+  id         String   @id @default(uuid())
+  tenantId   String
+  level      Int      // 1 = friendly reminder, 2 = formal, 3 = final warning, 4 = inkasso suggestion
+  amount     Float    // total overdue amount
+  sentAt     DateTime @default(now())
+  method     String   @default("letter") // letter, email, both
+  templateId String?
+  status     String   @default("sent") // sent, acknowledged, paid, escalated
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template MessageTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([tenantId, level])
+}
+
+// ============================================================================
+// BILLING (BK-ABRECHNUNG)
+// ============================================================================
+
+model Billing {
+  id          String   @id @default(uuid())
+  propertyId  String
+  period      String   // e.g. "2025" for annual BK
+  startDate   DateTime
+  endDate     DateTime
+  totalAmount Float
+  type        String   @default("bk") // bk, weg_hausgeld, weg_jahresabrechnung
+  status      String   @default("draft") // draft, calculated, approved, sent, paid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  items    BillingItem[]
+}
+
+model BillingItem {
+  id              String @id @default(uuid())
+  billingId       String
+  unitId          String?
+  unitDesignation String
+  tenantName      String
+  costType        String   // water_cold, water_warm, heating, electricity, garbage, elevator, insurance, management, cleaning, garden, other
+  distributionKey String   @default("area") // area, consumption, person_count, unit_count, fixed
+  totalCost       Float    // total cost for the property
+  unitShare       Float    // this unit's share
+  prepaid         Float    @default(0) // Vorauszahlung
+  balance         Float    @default(0) // Nachzahlung (positive) or Guthaben (negative)
+  quantity        Float?
+  unitPrice       Float?
+  total           Float
+
+  billing Billing @relation(fields: [billingId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// COMMUNICATION SYSTEM
+// ============================================================================
+
+model Communication {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  ownerId    String?
+  ticketId   String?
+  channel    String   @default("general") // tenant, owner, weg, service_provider, general
+  type       String   // email, phone, chat, note, system
+  subject    String?
+  message    String
+  direction  String   @default("inbound") // inbound, outbound, internal
+  senderRole String?  // admin, tenant, technician, owner, system
+  senderName String?
+  isRead     Boolean  @default(false)
+  templateId String?
+  parentId   String?  // for threaded replies
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticket   Ticket?  @relation(fields: [ticketId], references: [id])
+  parent   Communication?  @relation("ThreadReplies", fields: [parentId], references: [id])
+  replies  Communication[] @relation("ThreadReplies")
+  attachments Attachment[]
+
+  @@index([tenantId, createdAt])
+  @@index([ticketId, createdAt])
+  @@index([channel])
+}
+
+model MessageTemplate {
+  id          String   @id @default(uuid())
+  mandantId   String?
+  name        String
+  category    String   // maintenance, payment_reminder, dunning, general, welcome, lease, bk
+  subject     String?
+  body        String   // supports {{tenant_name}}, {{property_address}}, {{unit}}, {{amount}}, etc.
+  channel     String   @default("all") // tenant, owner, weg, service_provider, all
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  mandant      Mandant?      @relation(fields: [mandantId], references: [id])
+  dunningSteps DunningStep[]
+}
+
+// ============================================================================
+// TICKETS & MAINTENANCE
+// ============================================================================
+
+model Ticket {
+  id              String   @id @default(uuid())
+  propertyId      String
+  unitId          String?
+  tenantId        String?
+  technicianId    String?
+  title           String
+  description     String
+  category        String   // heating, water, electrical, general, smoke_detector, door_lock, structural, pest_control
+  priority        String   @default("medium") // low, medium, high, critical
+  status          String   @default("open") // open, assigned, quoted, approved, scheduled, in_progress, completed, invoiced, cancelled
+  costEstimate    Float?
+  costActual      Float?
+  responsibility  String?  // tenant, landlord, insurance, unclear
+  approvalRequired Boolean @default(false) // true if cost > threshold
+  approvedAt      DateTime?
+  approvedBy      String?
+  dueDate         DateTime?
+  scheduledDate   DateTime?
+  completedAt     DateTime?
+  rating          Int?     // 1-5 after completion
+  ratingComment   String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  property       Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit           Unit?           @relation(fields: [unitId], references: [id])
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id])
+  technician     Technician?     @relation(fields: [technicianId], references: [id])
+  communications Communication[]
+  attachments    Attachment[]
+  statusHistory  TicketStatusHistory[]
+
+  @@index([propertyId, status])
+  @@index([technicianId, status])
+  @@index([status, priority])
+}
+
+model TicketStatusHistory {
+  id        String   @id @default(uuid())
+  ticketId  String
+  fromStatus String
+  toStatus  String
+  changedBy String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+// ============================================================================
+// TECHNICIANS / SERVICE PROVIDERS
+// ============================================================================
+
+model Technician {
+  id             String   @id @default(uuid())
+  userId         String?  @unique
+  mandantId      String?
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  company        String?
+  specialization String   // heating, plumbing, electrical, general, smoke_detector, structural
+  availability   String?  // JSON string
+  hourlyRate     Float?
+  rating         Float    @default(5.0)
+  totalJobs      Int      @default(0)
+  avgCompletionHours Float? // average time to complete jobs
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id])
+  mandant Mandant? @relation(fields: [mandantId], references: [id])
+  tickets Ticket[]
+}
+
+// ============================================================================
+// DOCUMENTS & ATTACHMENTS
+// ============================================================================
+
+model Document {
+  id           String   @id @default(uuid())
+  propertyId   String?
+  unitId       String?
+  tenantId     String?
+  name         String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  filePath     String
+  category     String   // contract, invoice, protocol, insurance, correspondence, bk_abrechnung, weg_protocol, tax, photo, other
+  context      String   @default("rental") // rental, weg, cooperative, general
+  description  String?
+  fileHash     String?  // SHA-256 for integrity
+  isArchived   Boolean  @default(false) // once archived, cannot be modified
+  archivedAt   DateTime?
+  uploadedBy   String?
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  property Property? @relation(fields: [propertyId], references: [id])
+  unit     Unit?     @relation(fields: [unitId], references: [id])
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
+
+  @@index([propertyId, category])
+  @@index([tenantId])
+}
+
+model Attachment {
+  id              String   @id @default(uuid())
+  ticketId        String?
+  communicationId String?
+  fileName        String
+  fileSize        Int
+  mimeType        String
+  filePath        String
+  uploadedBy      String?
+  createdAt       DateTime @default(now())
+
+  ticket        Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  communication Communication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// METERING (ZÄHLER)
+// ============================================================================
+
+model Meter {
+  id              String   @id @default(uuid())
+  unitId          String
+  meterNumber     String   @unique
+  type            String   // water_cold, water_warm, electricity, gas, heating
+  location        String?
+  installDate     DateTime
+  calibrationDate DateTime?
+  calibrationDue  DateTime?
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  unit     Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  readings MeterReading[]
+
+  @@index([unitId, type])
+}
+
+model MeterReading {
+  id        String   @id @default(uuid())
+  meterId   String
+  unitId    String
+  value     Float
+  readingDate DateTime
+  readBy    String?  // user who entered or "automatic"
+  reason    String   @default("regular") // regular, move_in, move_out, annual, correction
+  isEstimate Boolean @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  meter Meter @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  unit  Unit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([meterId, readingDate])
+  @@index([unitId, readingDate])
+}
+
+// ============================================================================
+// SENSORS & SMART HOME (existing, preserved)
+// ============================================================================
+
+model Sensor {
+  id              String   @id @default(uuid())
+  unitId          String
+  type            String   // electricity, water, heat, smoke_detector, door_lock
+  designation     String
+  serialNumber    String   @unique
+  installDate     DateTime
+  expiryDate      DateTime?
+  status          String   @default("active") // active, warning, offline, defective
+  batteryLevel    Int?
+  lastReading     Float?
+  lastReadingAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  unit       Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  sensorData SensorData[]
+  alerts     Alert[]
+}
+
+model SensorData {
+  id        String   @id @default(uuid())
+  sensorId  String
+  unitId    String
+  value     Float
+  unit      String   // kWh, m3, celsius, percent, status
+  timestamp DateTime @default(now())
+
+  sensor    Sensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  unitRef   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, timestamp])
+  @@index([unitId, timestamp])
+}
+
+model Alert {
+  id         String   @id @default(uuid())
+  sensorId   String?
+  type       String   // anomaly, maintenance, payment, sensor_failure, security, dunning, automation
+  severity   String   // critical, warning, info
+  title      String
+  message    String
+  isRead     Boolean  @default(false)
+  isResolved Boolean  @default(false)
+  actionUrl  String?  // deep link to relevant page
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+
+  sensor Sensor? @relation(fields: [sensorId], references: [id])
+
+  @@index([isRead, createdAt])
+  @@index([type, severity])
+}
+
+// ============================================================================
+// AUTOMATION ENGINE
+// ============================================================================
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  mandantId   String?
+  name        String
+  description String?
+  trigger     String   // ticket_created, payment_overdue, meter_anomaly, contract_expiring, insurance_expiring, schedule
+  conditions  String?  // JSON: {"category": "heating", "priority": "high"}
+  actions     String   // JSON: [{"type": "assign_technician", "technicianId": "..."}, {"type": "send_message", "templateId": "..."}]
+  schedule    String?  // cron expression for scheduled triggers
+  isActive    Boolean  @default(true)
+  lastRunAt   DateTime?
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  mandant Mandant? @relation(fields: [mandantId], references: [id])
+}
+
+model ScheduledReminder {
+  id          String   @id @default(uuid())
+  entityType  String   // property, unit, contract, meter, insurance
+  entityId    String
+  title       String
+  description String?
+  dueDate     DateTime
+  reminderDays Int     @default(30) // remind X days before due
+  isRecurring Boolean  @default(false)
+  recurInterval String? // yearly, monthly, quarterly
+  status      String   @default("pending") // pending, sent, dismissed
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([dueDate, status])
+  @@index([entityType, entityId])
+}
+
+// ============================================================================
+// WEG / COOPERATIVE GOVERNANCE
+// ============================================================================
+
+model Meeting {
+  id          String   @id @default(uuid())
+  propertyId  String
+  type        String   @default("eigentuemerversammlung") // eigentuemerversammlung, board_meeting, cooperative_assembly
+  title       String
+  date        DateTime
+  location    String?
+  status      String   @default("planned") // planned, in_progress, completed, cancelled
+  protocolUrl String?  // link to uploaded protocol document
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property    Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agendaItems AgendaItem[]
+  attendees   MeetingAttendee[]
+}
+
+model AgendaItem {
+  id          String   @id @default(uuid())
+  meetingId   String
+  orderNum    Int
+  title       String
+  description String?
+  type        String   @default("discussion") // discussion, vote, information
+  // Vote results
+  votesFor    Int      @default(0)
+  votesAgainst Int     @default(0)
+  votesAbstain Int     @default(0)
+  resolution  String?  // the decided outcome (Beschluss)
+  status      String   @default("pending") // pending, discussed, voted, resolved
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, orderNum])
+}
+
+model MeetingAttendee {
+  id        String   @id @default(uuid())
+  meetingId String
+  name      String
+  role      String   // owner, proxy, board_member, manager
+  ownerId   String?
+  isPresent Boolean  @default(false)
+  sharePercent Float? // voting share (Miteigentumsanteil)
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// DSGVO / CONSENT
+// ============================================================================
+
+model Consent {
+  id          String   @id @default(uuid())
+  tenantId    String
+  type        String   // data_processing, marketing, communication_email, communication_sms
+  granted     Boolean  @default(false)
+  grantedAt   DateTime?
+  revokedAt   DateTime?
+  ipAddress   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type])
+}
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  propertyId String?
+  entityType String   // property, unit, tenant, contract, ticket, sensor, payment, document, communication
+  entityId   String
+  action     String   // create, update, delete, login, export, archive
+  changes    String?  // JSON string of changes {field: {old, new}}
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user     User?     @relation(fields: [userId], references: [id])
+  property Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
