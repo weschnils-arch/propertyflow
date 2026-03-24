@@ -5,8 +5,11 @@ export const metadata: Metadata = {
   title: 'PropertyFlow - Immobilienverwaltung',
   description: 'Hybrides Property-Management-System mit Smart-Home-Monitoring',
   icons: {
-    icon: '/favicon.png',
-    apple: '/favicon.png',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/apple-touch-icon.png',
   },
 }
 
