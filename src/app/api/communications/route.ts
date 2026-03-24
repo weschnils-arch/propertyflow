@@ -37,14 +37,18 @@ export async function GET(req: Request) {
 
     // TENANT conversations
     if (!channel || channel === 'all' || channel === 'tenant') {
-      const tenants = await prisma.tenant.findMany({
-        where: search ? {
-          OR: [
-            { firstName: { contains: search } },
-            { lastName: { contains: search } },
-            { email: { contains: search } },
-          ],
-        } : undefined,
+      // First get tenants with communications (most relevant), then fill with others
+      const tenantsWithComms = await prisma.tenant.findMany({
+        where: {
+          communications: { some: {} },
+          ...(search ? {
+            OR: [
+              { firstName: { contains: search } },
+              { lastName: { contains: search } },
+              { email: { contains: search } },
+            ],
+          } : {}),
+        },
         include: {
           communications: { orderBy: { createdAt: 'desc' }, take: 1 },
           contracts: {
@@ -59,8 +63,40 @@ export async function GET(req: Request) {
           },
         },
         orderBy: { updatedAt: 'desc' },
-        take: 50,
       })
+
+      const commTenantIds = new Set(tenantsWithComms.map(t => t.id))
+
+      const tenantsWithoutComms = await prisma.tenant.findMany({
+        where: {
+          id: { notIn: [...commTenantIds] },
+          contracts: { some: { status: 'active' } },
+          ...(search ? {
+            OR: [
+              { firstName: { contains: search } },
+              { lastName: { contains: search } },
+              { email: { contains: search } },
+            ],
+          } : {}),
+        },
+        include: {
+          communications: { orderBy: { createdAt: 'desc' }, take: 1 },
+          contracts: {
+            where: { status: 'active' },
+            include: { unit: { include: { property: true } } },
+            take: 1,
+          },
+          tickets: {
+            where: { status: { in: ['open', 'in_progress', 'assigned', 'scheduled'] } },
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: Math.max(0, 50 - tenantsWithComms.length),
+      })
+
+      const tenants = [...tenantsWithComms, ...tenantsWithoutComms]
 
       for (const t of tenants) {
         if (t.contracts.length === 0) continue
