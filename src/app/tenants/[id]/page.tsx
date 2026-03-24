@@ -9,7 +9,7 @@ import {
   ArrowLeft, MessageSquare, Droplets, Zap, Flame
 } from 'lucide-react'
 import { formatCurrency, formatDate, getStatusColor, getPriorityColor } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LazyBarChart as BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from '@/components/ui/lazy-recharts'
 
 interface TenantDetail {
   id: string; firstName: string; lastName: string; email: string

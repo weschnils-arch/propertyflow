@@ -1,7 +1,7 @@
 'use client'
 
 import { Gauge, Zap, Droplets, Flame, TrendingUp, TrendingDown, Clock } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LazyLineChart as LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from '@/components/ui/lazy-recharts'
 
 const STROM = [
   { month: 'Okt', kWh: 185 }, { month: 'Nov', kWh: 210 }, { month: 'Dez', kWh: 240 },

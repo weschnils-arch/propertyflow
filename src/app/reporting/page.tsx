@@ -8,9 +8,10 @@ import {
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend, PieChart, Pie, Cell,
-} from 'recharts'
+  LazyBarChart as BarChart, LazyLineChart as LineChart, LazyPieChart as PieChart,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Line, Legend, Pie, Cell,
+} from '@/components/ui/lazy-recharts'
 
 const COLORS = ['var(--primary)', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 

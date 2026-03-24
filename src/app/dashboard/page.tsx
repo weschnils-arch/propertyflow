@@ -11,9 +11,10 @@ import {
 } from 'lucide-react'
 import { formatCurrency, formatDateTime, getStatusColor, getPriorityColor } from '@/lib/utils'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, PieChart, Pie, Cell
-} from 'recharts'
+  LazyLineChart as LineChart, LazyBarChart as BarChart, LazyPieChart as PieChart,
+  Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Bar, Legend, Pie, Cell
+} from '@/components/ui/lazy-recharts'
 
 interface DashboardData {
   portfolio: {

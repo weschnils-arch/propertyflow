@@ -9,9 +9,11 @@ import {
 } from 'lucide-react'
 import { formatDate, formatDateTime, getStatusColor } from '@/lib/utils'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, ReferenceLine
-} from 'recharts'
+  LazyLineChart as LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from '@/components/ui/lazy-recharts'
+import dynamic from 'next/dynamic'
+const AreaChart = dynamic(() => import('recharts').then(m => ({ default: m.AreaChart })), { ssr: false })
+import { Area, ReferenceLine } from 'recharts'
 
 interface SensorDetail {
   id: string; type: string; designation: string; serialNumber: string

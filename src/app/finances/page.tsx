@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Wallet, TrendingUp, TrendingDown, FileText, Download, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
+import { LazyBarChart as BarChart, LazyLineChart as LineChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, Legend } from '@/components/ui/lazy-recharts'
 
 interface FinanceData {
   portfolio: { totalRentMonthly: number; totalIncomeMonthly: number }

@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { Building2, Shield, User, AlertCircle, Loader2 } from "lucide-react"
-import { DottedSurface } from "@/components/ui/dotted-surface"
+
+const DottedSurface = dynamic(() => import("@/components/ui/dotted-surface").then(m => ({ default: m.DottedSurface })), { ssr: false })
 import { ThemeSwitcher } from "@/components/ui/apple-liquid-glass-switcher"
 
 export default function LoginPage() {

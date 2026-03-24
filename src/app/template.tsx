@@ -1,9 +1,11 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import AppShell from '@/components/layout/AppShell'
 import TenantShell from '@/components/layout/TenantShell'
-import FloatingChat from '@/components/layout/FloatingChat'
+
+const FloatingChat = dynamic(() => import('@/components/layout/FloatingChat'), { ssr: false })
 
 const PUBLIC_ROUTES = ['/login', '/register', '/reply']
 

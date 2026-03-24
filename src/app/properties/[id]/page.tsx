@@ -9,7 +9,7 @@ import {
   Edit2, Save, X, Upload, ClipboardList, Clock, FileText
 } from 'lucide-react'
 import { formatCurrency, formatDate, getStatusColor, getPriorityColor } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { LazyBarChart as BarChart, LazyPieChart as PieChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Pie, Cell, Legend } from '@/components/ui/lazy-recharts'
 
 interface PropertyDetail {
   id: string; name: string; street: string; houseNumber: string; zipCode: string

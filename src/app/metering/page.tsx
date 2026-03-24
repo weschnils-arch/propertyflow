@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock,
   ChevronRight, Building2, BarChart3, X, ArrowUpDown,
 } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts'
+import { LazyLineChart as LineChart, LazyBarChart as BarChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Bar, Legend } from '@/components/ui/lazy-recharts'
 
 const CONSUMPTION_DATA = [
   { month: 'Okt', strom: 285, wasser: 42, heizung: 180 },
