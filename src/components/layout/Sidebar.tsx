@@ -12,6 +12,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  UsersRound,
   UserCircle,
   HardHat,
   Hammer,
@@ -24,15 +26,17 @@ import {
   Lightbulb,
   LifeBuoy,
   LogOut,
+  FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 
 // Pages that are fully implemented — everything else is greyed out
 const ENABLED_PAGES = new Set([
-  '/dashboard', '/communications', '/properties', '/tenants', '/technicians',
+  '/dashboard', '/vorgaenge', '/communications', '/communications/mieter', '/communications/genossenschaft',
+  '/properties', '/tenants', '/technicians',
   '/maintenance', '/documents', '/reporting', '/automation', '/governance',
-  '/settings', '/tenant-portal', '/technician-portal',
+  '/settings', '/settings/roles', '/tenant-portal', '/technician-portal',
   '/feature-request', '/support',
 ])
 
@@ -54,7 +58,11 @@ const navSections = [
   {
     label: 'Betrieb',
     items: [
-      { href: '/communications', label: 'Kommunikation', icon: MessageSquare },
+      { href: '/vorgaenge', label: 'Vorgänge', icon: FolderKanban },
+      { href: '/communications', label: 'Kommunikation', icon: MessageSquare, subItems: [
+        { href: '/communications', label: 'Mieter', icon: Users },
+        { href: '/communications/genossenschaft', label: 'Genossenschaft', icon: UsersRound },
+      ]},
       { href: '/maintenance', label: 'Wartung', icon: Wrench },
       { href: '/finances', label: 'Finanzen', icon: Wallet },
       { href: '/documents', label: 'Dokumente', icon: FolderArchive },
@@ -90,6 +98,7 @@ export default function Sidebar() {
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [kommOpen, setKommOpen] = useState(pathname.startsWith('/communications'))
 
   useEffect(() => {
     async function fetchUnread() {
@@ -189,6 +198,47 @@ export default function Sidebar() {
                   )
                 }
 
+                // Dropdown items (Kommunikation)
+                if ((item as any).subItems) {
+                  const subs = (item as any).subItems as Array<{ href: string; label: string; icon: React.ElementType }>
+                  const isCommActive = pathname.startsWith('/communications')
+                  return (
+                    <div key={item.href}>
+                      <button
+                        onClick={() => setKommOpen(!kommOpen)}
+                        className={cn('sidebar-link w-full', isCommActive && 'active')}
+                        title={collapsed ? item.label : undefined}
+                      >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        {!collapsed && <span className="flex-1">{item.label}</span>}
+                        {!collapsed && unreadCount > 0 && (
+                          <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        {!collapsed && (
+                          <ChevronDown className={cn('w-4 h-4 transition-transform text-muted-foreground', kommOpen && 'rotate-180')} />
+                        )}
+                      </button>
+                      {kommOpen && !collapsed && (
+                        <div className="ml-4 pl-3 border-l border-border/30 space-y-0.5 mt-0.5">
+                          {subs.map(sub => {
+                            const subActive = pathname === sub.href
+                            return (
+                              <Link key={sub.href} href={sub.href}
+                                className={cn('sidebar-link text-sm py-1.5', subActive && 'active')}
+                              >
+                                <sub.icon className="w-4 h-4 flex-shrink-0" />
+                                <span>{sub.label}</span>
+                              </Link>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
                 return (
                   <Link
                     key={item.href}
@@ -198,11 +248,6 @@ export default function Sidebar() {
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" />
                     {!collapsed && <span className="flex-1">{item.label}</span>}
-                    {item.href === '/communications' && unreadCount > 0 && (
-                      <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
                   </Link>
                 )
               })}
