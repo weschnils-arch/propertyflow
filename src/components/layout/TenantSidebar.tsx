@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   MessageSquare, Wrench, FolderArchive, Wallet, Gauge, User,
   Home, ChevronLeft, ChevronRight, Building2, LogOut, Shield,
+  AlertCircle, FolderKanban,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,8 @@ import { useState, useEffect } from 'react'
 
 const tenantNav = [
   { href: '/tenant-portal', label: 'Übersicht', icon: Home },
+  { href: '/tenant-portal/meldung', label: 'Neue Meldung', icon: AlertCircle },
+  { href: '/tenant-portal/vorgaenge', label: 'Meine Vorgänge', icon: FolderKanban },
   { href: '/tenant-portal/nachrichten', label: 'Nachrichten', icon: MessageSquare },
   { href: '/tenant-portal/tickets', label: 'Tickets', icon: Wrench },
   { href: '/tenant-portal/dokumente', label: 'Dokumente', icon: FolderArchive },
