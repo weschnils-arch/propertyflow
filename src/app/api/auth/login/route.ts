@@ -32,6 +32,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
+    if (!user.isActive) {
+      return NextResponse.json({ error: 'Konto ist nicht aktiviert' }, { status: 403 })
+    }
+
     const validPassword = await bcrypt.compare(password, user.password)
     if (!validPassword) {
       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })

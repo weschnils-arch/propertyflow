@@ -1,20 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-import { cookies } from 'next/headers'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'automiq-dev-secret-change-in-production'
-
-async function getUser() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get('auth-token')?.value
-  if (!token) return null
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    return prisma.user.findUnique({ where: { id: decoded.userId } })
-  } catch { return null }
-}
+import { getUser } from '@/lib/auth/get-user'
 
 // GET — fetch current user profile
 export async function GET() {
