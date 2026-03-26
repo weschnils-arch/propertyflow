@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -33,6 +33,14 @@ model User {
   ownerProfile      Owner?
   auditLogs         AuditLog[]
   sessions          Session[]
+  roleAssignments       RoleAssignment[]
+  assignedByAssignments RoleAssignment[]  @relation("AssignedByUser")
+  assignedVorgaenge     Vorgang[]         @relation("VorgangAssignedUser")
+  closedVorgaenge       Vorgang[]         @relation("VorgangClosedBy")
+  createdVorgaenge      Vorgang[]         @relation("VorgangCreatedBy")
+  createdActivities     VorgangActivity[] @relation("ActivityCreatedBy")
+  sentInvitations       Invitation[]      @relation("InvitedByUser")
+  staffNotifications    NotificationQueue[] @relation("StaffNotifications")
 }
 
 model Session {
@@ -68,6 +76,8 @@ model Mandant {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  nextVorgangSequence Int @default(1)
+
   users       User[]
   properties  Property[]
   owners      Owner[]
@@ -75,6 +85,11 @@ model Mandant {
   templates   MessageTemplate[]
   automations AutomationRule[]
   bankTransactions BankTransaction[]
+  roles             Role[]
+  roleAssignments   RoleAssignment[]
+  vorgaenge         Vorgang[]
+  vorgangCategories VorgangCategory[]
+  invitations       Invitation[]
 }
 
 // ============================================================================
@@ -117,6 +132,9 @@ model Property {
   expenses   Expense[]
   meetings   Meeting[]
   owners     PropertyOwner[]
+  vorgaenge       Vorgang[]
+  roleAssignments RoleAssignment[]
+  invitations     Invitation[]
 
   @@index([mandantId])
 }
@@ -146,6 +164,9 @@ model Unit {
   meters        Meter[]
   meterReadings MeterReading[]
   documents     Document[]
+  vorgaenge       Vorgang[]
+  roleAssignments RoleAssignment[]
+  invitations     Invitation[]
 }
 
 // ============================================================================
@@ -167,9 +188,11 @@ model Owner {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user       User?           @relation(fields: [userId], references: [id])
-  mandant    Mandant?        @relation(fields: [mandantId], references: [id])
-  properties PropertyOwner[]
+  user           User?           @relation(fields: [userId], references: [id])
+  mandant        Mandant?        @relation(fields: [mandantId], references: [id])
+  properties     PropertyOwner[]
+  vorgaenge      Vorgang[]
+  communications Communication[]
 }
 
 model PropertyOwner {
@@ -216,6 +239,8 @@ model Tenant {
   documents      Document[]
   dunningSteps   DunningStep[]
   consents       Consent[]
+  notifications  NotificationQueue[]
+  vorgaenge      Vorgang[]       @relation("VorgangTenant")
 }
 
 model Contract {
@@ -383,6 +408,7 @@ model Communication {
   tenantId   String?
   ownerId    String?
   ticketId   String?
+  vorgangId  String?
   channel    String   @default("general") // tenant, owner, weg, service_provider, general
   type       String   // email, phone, chat, note, system
   subject    String?
@@ -396,14 +422,41 @@ model Communication {
   createdAt  DateTime @default(now())
 
   tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner    Owner?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   ticket   Ticket?  @relation(fields: [ticketId], references: [id])
+  vorgang  Vorgang? @relation(fields: [vorgangId], references: [id], onDelete: SetNull)
   parent   Communication?  @relation("ThreadReplies", fields: [parentId], references: [id])
   replies  Communication[] @relation("ThreadReplies")
   attachments Attachment[]
+  notifications NotificationQueue[]
 
   @@index([tenantId, createdAt])
   @@index([ticketId, createdAt])
+  @@index([vorgangId, createdAt])
   @@index([channel])
+}
+
+model NotificationQueue {
+  id              String    @id @default(uuid())
+  tenantId        String?
+  userId          String?
+  communicationId String?
+  vorgangId       String?
+  type            String    // "message_notification", "mass_communication", "vorgang_created", "vorgang_assigned", "vorgang_status_changed", "vorgang_overdue"
+  status          String    @default("pending") // "pending", "sent", "failed", "throttled"
+  scheduledAt     DateTime  @default(now())
+  sentAt          DateTime?
+  failReason      String?
+  retryCount      Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
+  user          User?          @relation("StaffNotifications", fields: [userId], references: [id])
+  communication Communication? @relation(fields: [communicationId], references: [id])
+  vorgang       Vorgang?       @relation(fields: [vorgangId], references: [id])
+
+  @@index([status, scheduledAt])
+  @@index([tenantId, createdAt])
 }
 
 model MessageTemplate {
@@ -456,6 +509,7 @@ model Ticket {
   unit           Unit?           @relation(fields: [unitId], references: [id])
   tenant         Tenant?         @relation(fields: [tenantId], references: [id])
   technician     Technician?     @relation(fields: [technicianId], references: [id])
+  vorgang        Vorgang?
   communications Communication[]
   attachments    Attachment[]
   statusHistory  TicketStatusHistory[]
@@ -543,6 +597,7 @@ model Attachment {
   id              String   @id @default(uuid())
   ticketId        String?
   communicationId String?
+  vorgangId       String?
   fileName        String
   fileSize        Int
   mimeType        String
@@ -552,6 +607,7 @@ model Attachment {
 
   ticket        Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   communication Communication? @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  vorgang       Vorgang?       @relation(fields: [vorgangId], references: [id], onDelete: SetNull)
 }
 
 // ============================================================================
@@ -789,4 +845,183 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+// ============================================================================
+// ROLES & PERMISSIONS
+// ============================================================================
+
+model Role {
+  id          String   @id @default(uuid())
+  mandantId   String
+  name        String
+  description String?
+  color       String?
+  isSystem    Boolean  @default(false)
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  mandant         Mandant          @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  roleAssignments RoleAssignment[]
+  vorgaenge       Vorgang[]        @relation("VorgangAssignedRole")
+  categories      VorgangCategory[]
+  invitations     Invitation[]
+
+  @@index([mandantId])
+}
+
+model RoleAssignment {
+  id               String   @id @default(uuid())
+  userId           String
+  roleId           String
+  scope            String   // "mandant", "property", "unit"
+  mandantId        String
+  propertyId       String?
+  unitId           String?
+  isActive         Boolean  @default(true)
+  assignedAt       DateTime @default(now())
+  assignedByUserId String
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  mandant    Mandant  @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit       Unit?    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  assignedBy User     @relation("AssignedByUser", fields: [assignedByUserId], references: [id])
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([mandantId])
+  @@index([propertyId])
+  @@index([unitId])
+}
+
+// ============================================================================
+// VORGÄNGE (PROCESSES / TICKET SYSTEM)
+// ============================================================================
+
+model Vorgang {
+  id               String    @id @default(uuid())
+  referenceNumber  String    @unique
+  mandantId        String
+  propertyId       String
+  unitId           String?
+  tenantId         String?
+  ownerId          String?
+  ticketId         String?   @unique
+  title            String
+  description      String?
+  categoryId       String
+  subcategory      String?   // tenant-facing detail (e.g. "Heizung", "Wasser")
+  status           String    @default("open") // open, in_progress, waiting, closed
+  priority         String    @default("medium") // low, medium, high, critical
+  assignedToUserId String?
+  assignedToRoleId String?
+  dueDate          DateTime?
+  closedAt         DateTime?
+  closedByUserId   String?
+  createdByUserId  String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  mandant        Mandant          @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  property       Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit           Unit?            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant         Tenant?          @relation("VorgangTenant", fields: [tenantId], references: [id], onDelete: SetNull)
+  owner          Owner?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ticket         Ticket?          @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  category       VorgangCategory  @relation(fields: [categoryId], references: [id])
+  assignedToUser User?            @relation("VorgangAssignedUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  assignedToRole Role?            @relation("VorgangAssignedRole", fields: [assignedToRoleId], references: [id], onDelete: SetNull)
+  closedBy       User?            @relation("VorgangClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  createdBy      User             @relation("VorgangCreatedBy", fields: [createdByUserId], references: [id])
+  communications Communication[]
+  activities     VorgangActivity[]
+  attachments    Attachment[]
+  notifications  NotificationQueue[]
+
+  @@index([mandantId])
+  @@index([propertyId])
+  @@index([unitId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@index([status, priority])
+  @@index([propertyId, status])
+}
+
+model VorgangCategory {
+  id            String   @id @default(uuid())
+  mandantId     String
+  name          String
+  slug          String
+  description   String?
+  defaultRoleId String?
+  icon          String?
+  color         String?
+  isSystem      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  mandant     Mandant   @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  defaultRole Role?     @relation(fields: [defaultRoleId], references: [id], onDelete: SetNull)
+  vorgaenge   Vorgang[]
+
+  @@unique([mandantId, slug])
+  @@index([mandantId])
+}
+
+model VorgangActivity {
+  id              String    @id @default(uuid())
+  vorgangId       String
+  type            String    // User-creatable: termin, gespraechsvermerk, angebotsanfrage, auftrag. System: statuschange, assignment
+  title           String
+  description     String?
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  metadata        Json?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+
+  vorgang   Vorgang @relation(fields: [vorgangId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ActivityCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([vorgangId])
+  @@index([vorgangId, type])
+}
+
+// ============================================================================
+// INVITATIONS
+// ============================================================================
+
+model Invitation {
+  id               String   @id @default(uuid())
+  mandantId        String
+  email            String
+  firstName        String?
+  lastName         String?
+  roleId           String
+  scopeType        String   // "mandant", "property", "unit"
+  propertyId       String?
+  unitId           String?
+  token            String   @unique
+  status           String   @default("pending") // pending, accepted, expired
+  invitedByUserId  String
+  remindersSent    Int      @default(0)
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+
+  mandant   Mandant   @relation(fields: [mandantId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id])
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit      Unit?     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitedByUser", fields: [invitedByUserId], references: [id])
+
+  @@index([mandantId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
 }
