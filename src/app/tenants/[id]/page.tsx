@@ -6,10 +6,11 @@ import Link from 'next/link'
 import {
   User, Mail, Phone, Briefcase, Building2, Calendar, CreditCard,
   FileText, Wrench, AlertTriangle, CheckCircle, Clock, TrendingUp,
-  ArrowLeft, MessageSquare, Droplets, Zap, Flame
+  ArrowLeft, MessageSquare, Droplets, Zap, Flame, Pencil, Save, X
 } from 'lucide-react'
 import { formatCurrency, formatDate, getStatusColor, getPriorityColor } from '@/lib/utils'
 import { LazyBarChart as BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from '@/components/ui/lazy-recharts'
+import VorgaengeTab from '@/components/vorgaenge/VorgaengeTab'
 
 interface TenantDetail {
   id: string; firstName: string; lastName: string; email: string
@@ -40,6 +41,43 @@ export default function TenantDetailPage() {
   const [tenant, setTenant] = useState<TenantDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phone: '', occupation: '', employer: '', netIncome: '', notes: '' })
+
+  function startEdit() {
+    if (!tenant) return
+    setEditForm({
+      firstName: tenant.firstName,
+      lastName: tenant.lastName,
+      email: tenant.email,
+      phone: tenant.phone || '',
+      occupation: tenant.occupation || '',
+      employer: tenant.employer || '',
+      netIncome: tenant.netIncome ? String(tenant.netIncome) : '',
+      notes: tenant.notes || '',
+    })
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    if (!tenant) return
+    setSaving(true)
+    const res = await fetch(`/api/tenants/${tenant.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...editForm,
+        netIncome: editForm.netIncome ? parseFloat(editForm.netIncome) : null,
+      }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setTenant(prev => prev ? { ...prev, ...updated } : prev)
+      setEditing(false)
+    }
+    setSaving(false)
+  }
 
   useEffect(() => {
     fetch(`/api/tenants/${params.id}`).then(r => r.json()).then(d => { setTenant(d); setLoading(false) })
@@ -55,6 +93,7 @@ export default function TenantDetailPage() {
     { id: 'consumption', label: 'Verbrauch' },
     { id: 'tickets', label: `Tickets (${tenant.tickets.length})` },
     { id: 'communication', label: 'Kommunikation' },
+    { id: 'vorgaenge', label: 'Vorgänge' },
   ]
 
   const paymentChartData = tenant.payments.slice(0, 12).reverse().map(p => ({
@@ -90,7 +129,10 @@ export default function TenantDetailPage() {
               {tenant.phone && <a href={`tel:${tenant.phone}`} className="flex items-center gap-1 text-text-secondary hover:text-primary"><Phone className="w-3.5 h-3.5" /> {tenant.phone}</a>}
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+            <button onClick={startEdit} className="p-2 rounded-lg hover:bg-muted transition-colors" title="Mieter bearbeiten">
+              <Pencil className="w-4 h-4 text-muted-foreground" />
+            </button>
             {tenant._overdueCount > 0 ? (
               <span className="badge text-danger bg-red-50 text-sm"><AlertTriangle className="w-3.5 h-3.5 mr-1" />{tenant._overdueCount} überfällig</span>
             ) : (
@@ -316,6 +358,69 @@ export default function TenantDetailPage() {
           )) : (
             <div className="glass-card p-10 text-center text-text-muted">Keine Kommunikation vorhanden</div>
           )}
+        </div>
+      )}
+
+      {/* Vorgänge Tab */}
+      {activeTab === 'vorgaenge' && (
+        <VorgaengeTab entityType="tenant" entityId={tenant.id} />
+      )}
+
+      {/* Edit Modal */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditing(false)}>
+          <div className="glass-card w-full max-w-lg p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Mieter bearbeiten</h2>
+              <button onClick={() => setEditing(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Vorname</label>
+                <input className="input-field" value={editForm.firstName} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nachname</label>
+                <input className="input-field" value={editForm.lastName} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">E-Mail</label>
+              <input className="input-field" type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefon</label>
+                <input className="input-field" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beruf</label>
+                <input className="input-field" value={editForm.occupation} onChange={e => setEditForm(f => ({ ...f, occupation: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Arbeitgeber</label>
+                <input className="input-field" value={editForm.employer} onChange={e => setEditForm(f => ({ ...f, employer: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nettoeinkommen</label>
+                <input className="input-field" type="number" value={editForm.netIncome} onChange={e => setEditForm(f => ({ ...f, netIncome: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Notizen</label>
+              <textarea className="input-field resize-none" rows={3} value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setEditing(false)} className="btn-secondary">Abbrechen</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
+                <Save className="w-4 h-4" /> {saving ? 'Speichern...' : 'Speichern'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

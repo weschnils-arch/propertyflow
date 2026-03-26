@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { formatCurrency, formatDate, getStatusColor, getPriorityColor } from '@/lib/utils'
 import { LazyBarChart as BarChart, LazyPieChart as PieChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Pie, Cell, Legend } from '@/components/ui/lazy-recharts'
+import VorgaengeTab from '@/components/vorgaenge/VorgaengeTab'
 
 interface PropertyDetail {
   id: string; name: string; street: string; houseNumber: string; zipCode: string
@@ -115,6 +116,7 @@ export default function PropertyDetailPage() {
     { id: 'management', label: 'Property-Management' },
     { id: 'sensors', label: 'Sensoren' },
     { id: 'tickets', label: `Tickets (${property.tickets?.length || 0})` },
+    { id: 'vorgaenge', label: 'Vorgänge' },
   ]
 
   const allSensors = property.units.flatMap(u => u.sensors.map(s => ({ ...s, unitDesignation: u.designation, unitId: u.id })))
@@ -437,6 +439,11 @@ export default function PropertyDetailPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Vorgänge Tab */}
+      {activeTab === 'vorgaenge' && (
+        <VorgaengeTab entityType="property" entityId={property.id} />
       )}
     </div>
   )

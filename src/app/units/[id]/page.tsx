@@ -8,6 +8,7 @@ import {
   Zap, Droplets, Flame, AlertTriangle, Shield
 } from 'lucide-react'
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils'
+import VorgaengeTab from '@/components/vorgaenge/VorgaengeTab'
 
 interface UnitDetail {
   id: string; designation: string; floor: number; area: number; rooms: number
@@ -79,6 +80,7 @@ export default function UnitDetailPage() {
     { id: 'sensors', label: `Sensoren (${unit.sensors.length})` },
     { id: 'contracts', label: `Verträge (${unit.contracts.length})` },
     { id: 'tickets', label: `Tickets (${unit.tickets.length})` },
+    { id: 'vorgaenge', label: 'Vorgänge' },
   ]
 
   return (
@@ -306,6 +308,11 @@ export default function UnitDetailPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Vorgänge Tab */}
+      {activeTab === 'vorgaenge' && (
+        <VorgaengeTab entityType="unit" entityId={unit.id} />
       )}
     </div>
   )
